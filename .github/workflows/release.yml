@@ -24,6 +24,7 @@ jobs:
   # See: https://docs.pypi.org/trusted-publishers/
   publish-pypi:
     name: Publish three workspace wheels to PyPI
+    if: github.repository == 'BitterSecurity/Decepticon'
     runs-on: ubuntu-latest
     environment: pypi-release
     permissions:
@@ -85,6 +86,7 @@ jobs:
   # build time via --build-arg VERSION=<tag>. No pre-tag sync step needed.
   launcher:
     name: Build Go launcher binaries
+    if: github.repository == 'BitterSecurity/Decepticon'
     runs-on: ubuntu-latest
     environment: pypi-release
     steps:
@@ -140,6 +142,7 @@ jobs:
   # their Kali base + ~25-package apt layers are too slow under QEMU.
   docker:
     name: Build & push ${{ matrix.image }}
+    if: github.repository == 'BitterSecurity/Decepticon'
     runs-on: ubuntu-latest
     environment: pypi-release
     strategy:
@@ -303,6 +306,7 @@ jobs:
   # docker-heavy-merge.
   docker-heavy:
     name: Build & push ${{ matrix.image }} (${{ matrix.platform }})
+    if: github.repository == 'BitterSecurity/Decepticon'
     environment: pypi-release
     strategy:
       fail-fast: false
@@ -377,6 +381,7 @@ jobs:
   # size cap on the Kali SBOM) is preserved here too.
   docker-heavy-merge:
     name: Merge ${{ matrix.image }} manifest + sign + SBOM
+    if: github.repository == 'BitterSecurity/Decepticon'
     needs: docker-heavy
     strategy:
       fail-fast: false
@@ -484,6 +489,7 @@ jobs:
   #     fallback keeps resolving to the previous (working) release.
   publish-release:
     name: Verify images & publish release
+    if: github.repository == 'BitterSecurity/Decepticon'
     needs: [launcher, docker, docker-heavy-merge]
     runs-on: ubuntu-latest
     environment: pypi-release
@@ -590,3 +596,137 @@ jobs:
           gh release edit "v${{ steps.version.outputs.version }}" \
             --draft=false \
             --prerelease=${{ steps.version.outputs.prerelease }}
+
+  # AdverserialAI forks publish digest-pinned amd64 images for confidential
+  # runtimes. The upstream release jobs above remain intact and run only in
+  # BitterSecurity/Decepticon, so a fork tag cannot publish upstream packages.
+  adverserial-prepare:
+    name: Prepare Adverserial release
+    if: github.repository == 'AdverserialAI/Decepticon'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate tag and create draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --title "Decepticon $GITHUB_REF_NAME" --notes "Digest-pinned images for the Adverserial confidential runtime." \
+            --draft --verify-tag
+
+  adverserial-image:
+    name: Publish Adverserial ${{ matrix.image }}
+    if: github.repository == 'AdverserialAI/Decepticon'
+    needs: adverserial-prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: decepticon-litellm
+            dockerfile: containers/litellm.Dockerfile
+          - image: decepticon-langgraph
+            dockerfile: containers/langgraph.Dockerfile
+          - image: decepticon-cli
+            dockerfile: containers/cli.Dockerfile
+          - image: decepticon-skillogy
+            dockerfile: containers/skillogy.Dockerfile
+          - image: decepticon-sandbox
+            dockerfile: containers/sandbox.Dockerfile
+          - image: decepticon-c2-sliver
+            dockerfile: containers/c2-sliver.Dockerfile
+          - image: decepticon-rea
+            dockerfile: containers/rea.Dockerfile
+    env:
+      IMAGE: us-central1-docker.pkg.dev/adverserial-ack-poc/agents/${{ matrix.image }}
+      WORKLOAD_IDENTITY_PROVIDER: projects/711745269151/locations/global/workloadIdentityPools/github-releases/providers/decepticon
+      PUBLISHER: artex-release-publisher@adverserial-ack-poc.iam.gserviceaccount.com
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - id: google
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: ${{ env.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.PUBLISHER }}
+          token_format: access_token
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        with:
+          registry: us-central1-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.google.outputs.access_token }}
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+      - id: version
+        run: echo "number=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          push: true
+          sbom: true
+          provenance: mode=max
+          build-args: VERSION=${{ steps.version.outputs.number }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          tags: |
+            ${{ env.IMAGE }}:${{ github.ref_name }}
+            ${{ env.IMAGE }}:git-${{ github.sha }}
+      - uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+      - name: Sign image and upload digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]
+          cosign sign --yes "$IMAGE@$DIGEST"
+          printf '%s@%s\n' "$IMAGE" "$DIGEST" > "digest-${{ matrix.image }}.txt"
+          gh release upload "$GITHUB_REF_NAME" "digest-${{ matrix.image }}.txt" --clobber
+
+  adverserial-publish:
+    name: Publish Adverserial release
+    if: github.repository == 'AdverserialAI/Decepticon'
+    needs: [adverserial-prepare, adverserial-image]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Build attestation manifest from exact image digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERIFIER_URL: https://verify.adverserial.ai/verify
+        run: |
+          set -euo pipefail
+          mkdir digests
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern 'digest-*.txt' --dir digests
+          test "$(find digests -type f | wc -l | tr -d ' ')" = 7
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          refs=sorted(p.read_text().strip() for p in Path('digests').glob('digest-*.txt'))
+          if len(refs) != 7 or any('@sha256:' not in ref for ref in refs):
+              raise SystemExit('invalid image digest set')
+          ident=f"https://github.com/{os.environ['GITHUB_REPOSITORY']}/.github/workflows/release.yml@{os.environ['GITHUB_REF']}"
+          data={'schema':'adverserial.agent-release/v1','product':'Decepticon','version':os.environ['GITHUB_REF_NAME'],'commit':os.environ['GITHUB_SHA'],'images':refs,'platform':'linux/amd64','attestation':{'verifier_url':os.environ['VERIFIER_URL'],'cosign_oidc_issuer':'https://token.actions.githubusercontent.com','cosign_certificate_identity':ident}}
+          Path('decepticon-release.json').write_text(json.dumps(data,indent=2,sort_keys=True)+'\n')
+          Path('decepticon-images.env').write_text('\n'.join('DECEPTICON_'+ref.rsplit('/',1)[-1].split('@',1)[0].upper().replace('-','_')+'_IMAGE='+ref for ref in refs)+'\n')
+          PY
+          sha256sum decepticon-release.json decepticon-images.env > SHA256SUMS
+          gh release upload "$GITHUB_REF_NAME" decepticon-release.json decepticon-images.env SHA256SUMS --clobber
+          gh release edit "$GITHUB_REF_NAME" --draft=false
