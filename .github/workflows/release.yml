@@ -728,5 +728,5 @@ jobs:
           Path('decepticon-images.env').write_text('\n'.join('DECEPTICON_'+ref.rsplit('/',1)[-1].split('@',1)[0].upper().replace('-','_')+'_IMAGE='+ref for ref in refs)+'\n')
           PY
           sha256sum decepticon-release.json decepticon-images.env > SHA256SUMS
-          gh release upload "$GITHUB_REF_NAME" decepticon-release.json decepticon-images.env SHA256SUMS --clobber
-          gh release edit "$GITHUB_REF_NAME" --draft=false
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" decepticon-release.json decepticon-images.env SHA256SUMS --clobber
+          gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --draft=false

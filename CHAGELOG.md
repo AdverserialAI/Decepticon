@@ -15,6 +15,8 @@ Keep proposed and unmerged changes out of released sections.
 
 ## [Unreleased]
 
+- Proposed fork release finalization correction ([#2](https://github.com/AdverserialAI/Decepticon/pull/2)): pass the repository explicitly when the final workflow job uploads the aggregate digest manifest and publishes the draft. This fixes the failed `v2.3.0` finalization job; image contents, runtime interfaces and data formats are unchanged.
+
 - Proposed Adverserial confidential-runtime release pipeline ([#1](https://github.com/AdverserialAI/Decepticon/pull/1)): publish and keylessly sign all seven Decepticon service images for Linux amd64, attach exact digest pins and an attestation manifest, and prevent fork tags from invoking the upstream PyPI/GHCR publisher. This adds fork packaging only; supported Decepticon interfaces and persisted data formats are unchanged.
 
 - Live-capture qualification ([#1206](https://github.com/BitterSecurity/Decepticon/pull/1206)) for [#1198](https://github.com/BitterSecurity/Decepticon/pull/1198), unreleased: the public README-only Codex session is actually recorded with one completed turn and zero pending turns. Preserve local-only checkpoint policy, generated hook bytes, trust records and the canonical OSS checkout. No runtime/package/release change; process exit and commit checkpoint creation are not claimed. [Evidence](docs/operations/entire-public-live-capture-20261118.json).
