@@ -15,9 +15,7 @@ Keep proposed and unmerged changes out of released sections.
 
 ## [Unreleased]
 
-- Proposed fork release finalization correction ([#2](https://github.com/AdverserialAI/Decepticon/pull/2)): pass the repository explicitly when the final workflow job uploads the aggregate digest manifest and publishes the draft. This fixes the failed `v2.3.0` finalization job; image contents, runtime interfaces and data formats are unchanged.
-
-- Proposed Adverserial confidential-runtime release pipeline ([#1](https://github.com/AdverserialAI/Decepticon/pull/1)): publish and keylessly sign all seven Decepticon service images for Linux amd64, attach exact digest pins and an attestation manifest, and prevent fork tags from invoking the upstream PyPI/GHCR publisher. This adds fork packaging only; supported Decepticon interfaces and persisted data formats are unchanged.
+- Post-release changelog metadata ([#3](https://github.com/AdverserialAI/Decepticon/pull/3)), unreleased: record the actual `v2.3.1` publication date and comparison links. Documentation only; image contents and runtime behavior are unchanged.
 
 - Live-capture qualification ([#1206](https://github.com/BitterSecurity/Decepticon/pull/1206)) for [#1198](https://github.com/BitterSecurity/Decepticon/pull/1198), unreleased: the public README-only Codex session is actually recorded with one completed turn and zero pending turns. Preserve local-only checkpoint policy, generated hook bytes, trust records and the canonical OSS checkout. No runtime/package/release change; process exit and commit checkpoint creation are not claimed. [Evidence](docs/operations/entire-public-live-capture-20261118.json).
 
@@ -50,3 +48,12 @@ Keep proposed and unmerged changes out of released sections.
 - Proposed [continuous-pentest follow-up designs #1184](https://github.com/BitterSecurity/Decepticon/pull/1184), not released. Design-only: two proposal docs for the remaining continuous-engagement work, no code. [External trigger start](docs/design/2026-11-12-external-trigger-start.md) — start an in-scope run from an authenticated external event (ASM/CI/alert) through a small trigger receiver that cannot widen scope. [Incremental re-assessment](docs/design/2026-11-12-incremental-reassessment.md) — each periodic run still scans from scratch (confirmed), with a baseline-diff overlay that reports only NEW/RESOLVED changes; the open design risk is the cross-run finding identity key. Both carry open decisions for review. Review clarified current tenant/approval/funding gates, OpenShell-only network authority, independent event delivery, comparable coverage before RESOLVED, tenant-scoped finding identity and ordered baseline writes. These remain proposals; merging the documents does not approve implementation choices or activate a service.
 
 - Merged [scheduled engagements #1183](https://github.com/BitterSecurity/Decepticon/pull/1183), not released. `decepticon-cli schedule {create,list,delete}` starts engagement runs on the LangGraph server's native cron. `--mode reassess` (default) starts a fresh thread each tick (periodic re-assessment); `--mode campaign` continues one thread (a long engagement across scheduled slots, which `TimeWindowMiddleware` + `time-window-resume` keep inside its RoE window). `--multitask reject` skips a tick while a run is still active. Schedules are tagged so `list` reports only the ones this tool created. A scheduled run stays bound to the engagement's RoE and OpenShell policy. External-trigger start is a separate follow-up.
+
+## [2.3.1] — 2026-11-18
+
+- Adverserial confidential-runtime release pipeline ([#1](https://github.com/AdverserialAI/Decepticon/pull/1)): publish and keylessly sign all seven Decepticon service images for Linux amd64, attach exact digest pins and an attestation manifest, and prevent fork tags from invoking the upstream PyPI/GHCR publisher. This adds fork packaging only; supported Decepticon interfaces and persisted data formats are unchanged.
+
+- Fork release finalization correction ([#2](https://github.com/AdverserialAI/Decepticon/pull/2)): pass the repository explicitly when the final workflow job uploads the aggregate digest manifest and publishes the draft. This recovered the finalization failure found in the unpublished `v2.3.0` draft; image contents, runtime interfaces and data formats are unchanged.
+
+[Unreleased]: https://github.com/AdverserialAI/Decepticon/compare/v2.3.1...HEAD
+[2.3.1]: https://github.com/AdverserialAI/Decepticon/compare/v2.2.2...v2.3.1
